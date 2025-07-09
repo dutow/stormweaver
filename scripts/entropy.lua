@@ -73,7 +73,7 @@ end
 
 function db_files_entropy(w, datadir)
 	list_tables =
-		"select pg_relation_filepath(c.oid), c.relname, a.amname, c.oid, pg_tde_is_encrypted(c.oid) from pg_class c join pg_am a ON a.oid = c.relam where relkind in ('r', 'm') AND c.relname not like 'pg_%' AND c.relname not like 'sql_%';"
+		"select pg_relation_filepath(c.oid) AS path, c.relname AS relname, a.amname AS amname, c.oid AS oid, pg_tde_is_encrypted(c.oid) AS is_encrypted from pg_class c join pg_am a ON a.oid = c.relam where relkind in ('r', 'm') AND c.relname not like 'pg_%' AND c.relname not like 'sql_%';"
 	res = w:sql_connection():execute_query(list_tables)
 	data = res:data()
 
@@ -83,13 +83,13 @@ function db_files_entropy(w, datadir)
 	end
 
 	for _, rec in ipairs(allData) do
-		tableam = rec:field(3)
-		tablename = rec:field(2)
-		verify_entropy(tablename, tablename, tableam, rec:field(5), datadir .. rec:field(1))
+		tableam = rec:field("amname")
+		tablename = rec:field("relname")
+		verify_entropy(tablename, tablename, tableam, rec:field("is_encrypted"), datadir .. rec:field("path"))
 
-		oid = rec:field(4)
+		oid = rec:field("oid")
 
-		list_deps = "select pg_relation_filepath(c.oid), c.relname, pg_tde_is_encrypted(c.oid) from pg_class c join pg_attribute a on a.attrelid = "
+		list_deps = "select pg_relation_filepath(c.oid) AS path, c.relname AS relname, pg_tde_is_encrypted(c.oid) AS is_encrypted from pg_class c join pg_attribute a on a.attrelid = "
 			.. oid
 			.. " join pg_depend d ON d.objid = c.oid and d.deptype in ('i', 'a') and a.attrelid = "
 			.. oid
@@ -102,8 +102,8 @@ function db_files_entropy(w, datadir)
 		for recId = 1, data2:numRows() do
 			rec2 = data2:nextRow()
 
-			if rec2:field(1) ~= nil then
-				verify_entropy(rec2:field(2), tablename, tableam, rec2:field(3), datadir .. rec2:field(1))
+			if rec2:field("path") ~= nil then
+				verify_entropy(rec2:field("relname"), tablename, tableam, rec2:field("is_encrypted"), datadir .. rec2:field("path"))
 			end
 		end
 
