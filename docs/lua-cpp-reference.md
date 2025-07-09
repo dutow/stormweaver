@@ -201,11 +201,268 @@ A class representing a database connection
 ### execute_query
 
 ```lua
-conn.execute_query("CREATE EXTENSION pg_tde;")
+result = conn:execute_query("SELECT id, name, email FROM users WHERE active = true")
 ```
 
-A simple funtion that execute a single SQL query.
-Result sets are not yet implemented in lua.
+Executes a single SQL query and returns a `QueryResult` object.
+
+!!! note
+    This function supports both DML (SELECT, INSERT, UPDATE, DELETE) and DDL (CREATE, ALTER, DROP) statements.
+
+## QueryResult
+
+Represents the result of a SQL query execution.
+
+### success
+
+```lua
+if result:success() then
+  -- Query executed successfully
+end
+```
+
+Returns `true` if the query executed successfully, `false` otherwise.
+
+### data
+
+```lua
+local resultSet = result:data()
+```
+
+Returns a `QuerySpecificResult` object containing the query results. Returns `nil` if the query failed or didn't return any data.
+
+### query
+
+```lua
+local queryString = result.query
+```
+
+Property containing the original SQL query string.
+
+## QuerySpecificResult
+
+Represents a result set from a successful query.
+
+### numRows
+
+```lua
+local rowCount = resultSet:numRows()
+```
+
+Returns the number of rows in the result set.
+
+### numFields
+
+```lua
+local columnCount = resultSet:numFields()
+```
+
+Returns the number of columns in the result set.
+
+### fieldNames
+
+```lua
+local columnNames = resultSet:fieldNames()
+-- columnNames is an array: {"id", "name", "email"}
+```
+
+Returns an array of column names in the result set.
+
+### fieldIndex
+
+```lua
+local index = resultSet:fieldIndex("email")
+-- index is 3 (1-based indexing, as usually in Lua)
+```
+
+Returns the column index for a given column name, or `nil` if the column doesn't exist.
+
+### fieldName
+
+```lua
+local columnName = resultSet:fieldName(1)
+-- columnName is "id"
+```
+
+Returns the column name for a given column index, or empty string if the index is out of bounds.
+
+### nextRow
+
+```lua
+local row = resultSet:nextRow()
+```
+
+Returns the next `RowView` object from the result set. Call this method repeatedly to iterate through all rows.
+
+## RowView
+
+Represents a single row from a query result.
+
+### field (by index)
+
+```lua
+local value = row:field(1)  -- Gets the first column (1-based indexing in Lua)
+```
+
+Returns the value of the specified column by index. Uses 1-based indexing in Lua.
+
+### field (by name)
+
+```lua
+local value = row:field("email")  -- Gets the column named "email"
+```
+
+Returns the value of the specified column by name. Returns `nil` if the column doesn't exist.
+
+!!! tip "Name-based vs Index-based Access"
+    Name-based access is more readable and maintainable, especially when working with complex queries or when column order might change.
+
+### hasField
+
+```lua
+if row:hasField("optional_column") then
+  local value = row:field("optional_column")
+end
+```
+
+Returns `true` if the row contains a column with the specified name, `false` otherwise.
+
+### fieldNames
+
+```lua
+local columnNames = row:fieldNames()
+-- columnNames is an array: {"id", "name", "email"}
+```
+
+Returns an array of all column names in the row.
+
+### numFields
+
+```lua
+local columnCount = row:numFields()
+```
+
+Returns the number of columns in the row.
+
+## SQL Interface Examples
+
+### Basic Query with Name-based Access
+
+```lua
+local result = sql:execute_query("SELECT id, user_name, email FROM users LIMIT 3")
+
+if result:success() then
+  local data = result:data()
+  
+  print("Found " .. data:numRows() .. " users")
+  print("Columns: " .. table.concat(data:fieldNames(), ", "))
+  
+  for i = 1, data:numRows() do
+    local row = data:nextRow()
+    
+    -- Name-based access (recommended)
+    local id = row:field("id")
+    local name = row:field("user_name")
+    local email = row:field("email")
+    
+    print("User " .. id .. ": " .. name .. " (" .. (email or "no email") .. ")")
+  end
+end
+```
+
+### Working with Column Aliases
+
+```lua
+local result = sql:execute_query([[
+  SELECT 
+    id AS user_id,
+    user_name AS full_name,
+    email AS email_address
+  FROM users
+  LIMIT 1
+]])
+
+if result:success() then
+  local data = result:data()
+  local row = data:nextRow()
+  
+  -- Access by alias names
+  local userId = row:field("user_id")
+  local fullName = row:field("full_name")
+  local emailAddress = row:field("email_address")
+  
+  print("User ID: " .. userId)
+  print("Full Name: " .. fullName)
+  print("Email: " .. (emailAddress or "N/A"))
+end
+```
+
+### Handling NULL Values
+
+```lua
+local result = sql:execute_query("SELECT name, email FROM users WHERE id = 1")
+
+if result:success() then
+  local data = result:data()
+  local row = data:nextRow()
+  
+  local name = row:field("name")
+  local email = row:field("email")
+  
+  print("Name: " .. name)
+  
+  if email then
+    print("Email: " .. email)
+  else
+    print("Email: Not provided")
+  end
+end
+```
+
+### INSERT with RETURNING
+
+```lua
+local result = sql:execute_query([[
+  INSERT INTO users (name, email) 
+  VALUES ('John Doe', 'john@example.com')
+  RETURNING id, name, created_at
+]])
+
+if result:success() then
+  local data = result:data()
+  local row = data:nextRow()
+  
+  local newId = row:field("id")
+  local name = row:field("name")
+  local createdAt = row:field("created_at")
+  
+  print("Created user " .. newId .. ": " .. name .. " at " .. createdAt)
+end
+```
+
+### Error Handling
+
+```lua
+local result = sql:execute_query("SELECT * FROM nonexistent_table")
+
+if not result:success() then
+  print("Query failed: " .. result.query)
+  -- Handle error appropriately
+  return
+end
+
+-- Process successful result
+local data = result:data()
+-- ...
+```
+
+!!! warning "Field Name Case Sensitivity"
+    Column names are case-sensitive. Make sure to use the exact case as returned by the database.
+
+!!! tip "Performance Considerations"
+    - Name-based access uses hash map lookups (O(1) average case)
+    - Index-based access is slightly faster but less maintainable
+    - Consider using index-based access in performance-critical loops with many rows
 
 ## Node
 

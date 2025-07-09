@@ -4,6 +4,7 @@
 #include <mutex>
 #include <mysql.h>
 #include <sstream>
+#include <unordered_map>
 
 // #include "common.hpp"
 #ifndef MAX_PACKET_DEFAULT
@@ -14,9 +15,18 @@ namespace {
 struct MySQLSpecificResult : sql_variant::QuerySpecificResult {
   MYSQL_RES *res;
   std::size_t num_fields;
+  std::unordered_map<std::string, std::size_t> nameToIndex;
 
   MySQLSpecificResult(MYSQL_RES *res)
-      : res(res), num_fields(res == nullptr ? 0 : mysql_num_fields(res)) {}
+      : res(res), num_fields(res == nullptr ? 0 : mysql_num_fields(res)) {
+    if (res != nullptr) {
+      for (std::size_t i = 0; i < num_fields; ++i) {
+        MYSQL_FIELD *field = mysql_fetch_field_direct(res, i);
+        std::string colName = field->name;
+        nameToIndex[colName] = i;
+      }
+    }
+  }
 
   ~MySQLSpecificResult() override {
     if (res != nullptr)
@@ -44,6 +54,7 @@ struct MySQLSpecificResult : sql_variant::QuerySpecificResult {
     }
 
     ret.rowData.resize(num_fields);
+    ret.columnNameToIndex = nameToIndex;
 
     for (std::size_t i = 0; i < num_fields; ++i) {
       if (mdata[i] != nullptr) {
@@ -52,6 +63,33 @@ struct MySQLSpecificResult : sql_variant::QuerySpecificResult {
     }
 
     return ret;
+  }
+
+  std::vector<std::string> fieldNames() const override {
+    std::vector<std::string> names;
+    names.reserve(num_fields);
+    for (std::size_t i = 0; i < num_fields; ++i) {
+      MYSQL_FIELD *field = mysql_fetch_field_direct(res, i);
+      names.push_back(field ? field->name : "");
+    }
+    return names;
+  }
+
+  std::optional<std::size_t>
+  fieldIndex(const std::string &name) const override {
+    auto it = nameToIndex.find(name);
+    if (it == nameToIndex.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  std::string fieldName(std::size_t idx) const override {
+    if (res == nullptr || idx >= num_fields) {
+      return "";
+    }
+    MYSQL_FIELD *field = mysql_fetch_field_direct(res, idx);
+    return field ? field->name : "";
   }
 };
 } // namespace

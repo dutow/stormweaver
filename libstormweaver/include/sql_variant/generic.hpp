@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace sql_variant {
@@ -102,6 +103,37 @@ struct ErrorInfo {
 
 struct RowView {
   std::vector<std::optional<std::string_view>> rowData;
+  std::unordered_map<std::string, std::size_t> columnNameToIndex;
+
+  std::optional<std::string_view> field(std::size_t idx) const {
+    if (idx >= rowData.size()) {
+      return std::nullopt;
+    }
+    return rowData[idx];
+  }
+
+  std::optional<std::string_view> field(const std::string &name) const {
+    auto it = columnNameToIndex.find(name);
+    if (it == columnNameToIndex.end()) {
+      return std::nullopt;
+    }
+    return field(it->second);
+  }
+
+  bool hasField(const std::string &name) const {
+    return columnNameToIndex.find(name) != columnNameToIndex.end();
+  }
+
+  std::vector<std::string> fieldNames() const {
+    std::vector<std::string> names;
+    names.reserve(columnNameToIndex.size());
+    for (const auto &pair : columnNameToIndex) {
+      names.push_back(pair.first);
+    }
+    return names;
+  }
+
+  std::size_t numFields() const { return rowData.size(); }
 };
 
 struct QuerySpecificResult {
@@ -111,6 +143,11 @@ struct QuerySpecificResult {
   virtual std::size_t numRows() const = 0;
 
   virtual RowView nextRow() const = 0;
+
+  virtual std::vector<std::string> fieldNames() const = 0;
+  virtual std::optional<std::size_t>
+  fieldIndex(const std::string &name) const = 0;
+  virtual std::string fieldName(std::size_t idx) const = 0;
 };
 
 struct QueryResult {

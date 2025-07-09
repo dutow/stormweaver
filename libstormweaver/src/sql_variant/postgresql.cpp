@@ -4,6 +4,7 @@
 #include <mutex>
 #include <pqxx/pqxx>
 #include <sstream>
+#include <unordered_map>
 
 #include <iostream>
 
@@ -12,8 +13,15 @@ struct PostgreSQLSpecificResult : sql_variant::QuerySpecificResult {
 
   pqxx::result result;
   mutable std::size_t rowIdx;
+  std::unordered_map<std::string, std::size_t> nameToIndex;
 
-  PostgreSQLSpecificResult(pqxx::result result) : result(result), rowIdx(0) {}
+  PostgreSQLSpecificResult(pqxx::result result) : result(result), rowIdx(0) {
+    for (std::size_t i = 0; i < static_cast<std::size_t>(result.columns());
+         ++i) {
+      std::string colName = result.column_name(i);
+      nameToIndex[colName] = i;
+    }
+  }
 
   ~PostgreSQLSpecificResult() override {}
 
@@ -25,6 +33,7 @@ struct PostgreSQLSpecificResult : sql_variant::QuerySpecificResult {
 
     sql_variant::RowView rowResult;
     rowResult.rowData.resize(numFields());
+    rowResult.columnNameToIndex = nameToIndex;
 
     pqxx::row row = result[rowIdx];
     rowIdx++;
@@ -35,6 +44,32 @@ struct PostgreSQLSpecificResult : sql_variant::QuerySpecificResult {
     }
 
     return rowResult;
+  }
+
+  std::vector<std::string> fieldNames() const override {
+    std::vector<std::string> names;
+    names.reserve(result.columns());
+    for (std::size_t i = 0; i < static_cast<std::size_t>(result.columns());
+         ++i) {
+      names.push_back(result.column_name(i));
+    }
+    return names;
+  }
+
+  std::optional<std::size_t>
+  fieldIndex(const std::string &name) const override {
+    auto it = nameToIndex.find(name);
+    if (it == nameToIndex.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  std::string fieldName(std::size_t idx) const override {
+    if (idx >= static_cast<std::size_t>(result.columns())) {
+      return "";
+    }
+    return result.column_name(idx);
   }
 };
 

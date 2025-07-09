@@ -80,12 +80,15 @@ LuaContext::LuaContext(std::shared_ptr<spdlog::logger> logger)
 
   auto rowview_usertype = luaState.new_usertype<sql_variant::RowView>(
       "RowView", sol::no_constructor);
-  rowview_usertype["field"] = [](sql_variant::RowView &self, std::size_t idx) {
-    return self.rowData[idx - 1];
-  };
-  rowview_usertype["numFields"] = [](sql_variant::RowView &self) {
-    return self.rowData.size();
-  };
+  rowview_usertype["field"] =
+      sol::overload([](sql_variant::RowView &self,
+                       std::size_t idx) { return self.field(idx - 1); },
+                    [](sql_variant::RowView &self, const std::string &name) {
+                      return self.field(name);
+                    });
+  rowview_usertype["numFields"] = &sql_variant::RowView::numFields;
+  rowview_usertype["hasField"] = &sql_variant::RowView::hasField;
+  rowview_usertype["fieldNames"] = &sql_variant::RowView::fieldNames;
 
   auto queryspecificresult_usertype =
       luaState.new_usertype<sql_variant::QuerySpecificResult>(
@@ -97,6 +100,18 @@ LuaContext::LuaContext(std::shared_ptr<spdlog::logger> logger)
       &sql_variant::QuerySpecificResult::numRows;
   queryspecificresult_usertype["nextRow"] =
       &sql_variant::QuerySpecificResult::nextRow;
+  queryspecificresult_usertype["fieldNames"] =
+      &sql_variant::QuerySpecificResult::fieldNames;
+  queryspecificresult_usertype["fieldIndex"] =
+      [](sql_variant::QuerySpecificResult &self, const std::string &name) {
+        return self.fieldIndex(name).and_then([](std::size_t idx) {
+          return std::optional<std::size_t>(idx + 1);
+        });
+      };
+  queryspecificresult_usertype["fieldName"] =
+      [](sql_variant::QuerySpecificResult &self, int idx) {
+        return self.fieldName(idx - 1);
+      };
 
   auto queryresult_usertype = luaState.new_usertype<sql_variant::QueryResult>(
       "QueryResult", sol::no_constructor);

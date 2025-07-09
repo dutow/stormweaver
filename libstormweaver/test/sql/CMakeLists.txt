@@ -1,6 +1,7 @@
 SET(SQLTEST_SOURCES
     main.cpp
     ddl.cpp
+    sql_interface_test.cpp
 )
 
 add_executable(test-stormweaver-sql ${SQLTEST_SOURCES})
