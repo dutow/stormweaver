@@ -1,0 +1,16 @@
+{
+  "planPath": "docs/plans/2026-03-30-python-migration-implementation.md",
+  "tasks": [
+    {"id": 1, "subject": "Task 1: Remove Lua from build system", "status": "pending"},
+    {"id": 2, "subject": "Task 2: Decouple C++ from Lua", "status": "pending", "blockedBy": [1]},
+    {"id": 3, "subject": "Task 3: Bind SQL layer to nanobind", "status": "pending", "blockedBy": [2]},
+    {"id": 4, "subject": "Task 4: Bind Metadata and ActionRegistry", "status": "pending", "blockedBy": [2]},
+    {"id": 5, "subject": "Task 5: Bind Worker, RandomWorker, Statistics", "status": "pending", "blockedBy": [3, 4]},
+    {"id": 6, "subject": "Task 6: Create Python package structure", "status": "pending", "blockedBy": [5]},
+    {"id": 7, "subject": "Task 7: Python Postgres class", "status": "pending"},
+    {"id": 8, "subject": "Task 8: Python Workload class", "status": "pending", "blockedBy": [5]},
+    {"id": 9, "subject": "Task 9: Wrapper script and CMake install", "status": "pending", "blockedBy": [6, 8]},
+    {"id": 10, "subject": "Task 10: Minimal scenario and integration test", "status": "pending", "blockedBy": [7, 9]}
+  ],
+  "lastUpdated": "2026-03-30T00:00:00Z"
+}
