@@ -84,5 +84,25 @@ endif()
 add_subdirectory(libstormweaver)
 if(nanobind_FOUND)
   add_subdirectory(stormweaver)
+
+  # Get the directory where the extension module is built
+  set(STORMWEAVER_EXT_DIR "$<TARGET_FILE_DIR:_stormweaver>")
+  set(CPYTHON_EXECUTABLE "${Python_EXECUTABLE}")
+
+  # Generate dev wrapper for local builds
+  configure_file(
+      "${CMAKE_SOURCE_DIR}/stormweaver-dev.sh.in"
+      "${CMAKE_BINARY_DIR}/stormweaver.configured"
+      @ONLY
+  )
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/stormweaver"
+       INPUT "${CMAKE_BINARY_DIR}/stormweaver.configured")
+
+  # Install rules
+  install(DIRECTORY src/stormweaver/ DESTINATION python/lib/python3.14t/site-packages/stormweaver)
+  install(TARGETS _stormweaver DESTINATION python/lib/python3.14t/site-packages/)
+  install(PROGRAMS stormweaver.sh.in DESTINATION bin RENAME stormweaver)
+  install(DIRECTORY scenarios/ DESTINATION scenarios)
+  install(DIRECTORY config/ DESTINATION config)
 endif()
 add_subdirectory(tests)

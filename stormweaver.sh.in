@@ -1,0 +1,6 @@
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SW_ROOT="$(dirname "$SCRIPT_DIR")"
+export PYTHONHOME="${SW_ROOT}/python"
+export PYTHONPATH="${SW_ROOT}/python/lib/python3.14t/site-packages"
+exec "${SW_ROOT}/python/bin/python3.14t" -m stormweaver "$@"

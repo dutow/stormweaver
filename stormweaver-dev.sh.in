@@ -1,0 +1,4 @@
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PYTHONPATH="@CMAKE_SOURCE_DIR@/src:@STORMWEAVER_EXT_DIR@"
+exec "@CPYTHON_EXECUTABLE@" -m stormweaver "$@"

@@ -1,14 +1,9 @@
-if(NOT "${TEST_PG_DIR}" STREQUAL "")
+if(NOT "${TEST_PG_DIR}" STREQUAL "" AND nanobind_FOUND)
 
-    set(TEST_SCENARIOS
-        background
-        simple-pg
-    )
-
-    foreach(test ${TEST_SCENARIOS})
-        add_test(NAME stormweaver-${test}
-		COMMAND stormweaver "${CMAKE_SOURCE_DIR}/tests/${test}.lua" "-i" "${TEST_PG_DIR}"
-                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-    endforeach()
+    add_test(NAME stormweaver-basic
+        COMMAND "${CMAKE_BINARY_DIR}/stormweaver"
+                "${CMAKE_SOURCE_DIR}/scenarios/ci/basic.py"
+                "-i" "${TEST_PG_DIR}"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 endif()
