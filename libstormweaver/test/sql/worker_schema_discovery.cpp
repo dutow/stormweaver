@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include "sql.hpp"
+#include "sql_variant/postgresql.hpp"
 #include "workload.hpp"
 
 // Fixture to ensure clean database state for each test
@@ -21,6 +22,15 @@ public:
     // Clean up is automatic via schema recreation in next test
   }
 };
+
+static Worker::sql_connector_t make_connector(const std::string &conn_name) {
+  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
+                                   "stormweaver", "",          25432};
+  return [params, conn_name]() {
+    return std::make_unique<sql_variant::LoggedSQL>(
+        std::make_unique<sql_variant::PostgreSQL>(params), conn_name);
+  };
+}
 
 TEST_CASE_METHOD(WorkerSchemaDiscoveryFixture,
                  "Worker - Schema discovery basic workflow",
@@ -58,23 +68,11 @@ TEST_CASE_METHOD(WorkerSchemaDiscoveryFixture,
                      "(name, age DESC)")
       .maybeThrow();
 
-  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
-                                   "stormweaver", "",          25432};
-
-  SqlFactory::on_connect_t empty_callback;
-  SqlFactory factory(params, empty_callback);
-
-  auto logger =
-      spdlog::get("test") ? spdlog::get("test") : spdlog::default_logger();
-  LuaContext luaCtx(logger);
-
   auto metadata = std::make_shared<metadata::Metadata>();
   WorkloadParams wp;
 
   auto worker = std::make_unique<Worker>(
-      "test-worker",
-      [&factory, &luaCtx]() { return factory.connect("test-worker", luaCtx); },
-      wp, metadata);
+      "test-worker", make_connector("test-worker"), wp, metadata);
 
   REQUIRE(metadata->size() == 0);
 
@@ -152,36 +150,24 @@ TEST_CASE_METHOD(WorkerSchemaDiscoveryFixture,
 
   sqlConnection
       ->executeQuery(R"(
-        CREATE TABLE test_worker_partitioned_p0 PARTITION OF test_worker_partitioned 
+        CREATE TABLE test_worker_partitioned_p0 PARTITION OF test_worker_partitioned
         FOR VALUES FROM (0) TO (1000)
     )")
       .maybeThrow();
 
   sqlConnection
       ->executeQuery(R"(
-        CREATE TABLE test_worker_partitioned_p1 PARTITION OF test_worker_partitioned 
+        CREATE TABLE test_worker_partitioned_p1 PARTITION OF test_worker_partitioned
         FOR VALUES FROM (1000) TO (2000)
     )")
       .maybeThrow();
 
-  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
-                                   "stormweaver", "",          25432};
-
-  SqlFactory::on_connect_t empty_callback;
-  SqlFactory factory(params, empty_callback);
-
-  auto logger =
-      spdlog::get("test") ? spdlog::get("test") : spdlog::default_logger();
-  LuaContext luaCtx(logger);
   auto metadata = std::make_shared<metadata::Metadata>();
   WorkloadParams wp;
 
   auto worker = std::make_unique<Worker>(
       "test-worker-partitioned",
-      [&factory, &luaCtx]() {
-        return factory.connect("test-worker-partitioned", luaCtx);
-      },
-      wp, metadata);
+      make_connector("test-worker-partitioned"), wp, metadata);
 
   worker->discover_existing_schema();
 
@@ -210,24 +196,11 @@ TEST_CASE_METHOD(WorkerSchemaDiscoveryFixture,
                  "[worker_schema_discovery]") {
   REQUIRE(sqlConnection != nullptr);
 
-  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
-                                   "stormweaver", "",          25432};
-
-  SqlFactory::on_connect_t empty_callback;
-  SqlFactory factory(params, empty_callback);
-
-  auto logger =
-      spdlog::get("test") ? spdlog::get("test") : spdlog::default_logger();
-  LuaContext luaCtx(logger);
   auto metadata = std::make_shared<metadata::Metadata>();
   WorkloadParams wp;
 
   auto worker = std::make_unique<Worker>(
-      "test-worker-empty",
-      [&factory, &luaCtx]() {
-        return factory.connect("test-worker-empty", luaCtx);
-      },
-      wp, metadata);
+      "test-worker-empty", make_connector("test-worker-empty"), wp, metadata);
 
   worker->discover_existing_schema();
 
@@ -248,24 +221,11 @@ TEST_CASE_METHOD(WorkerSchemaDiscoveryFixture,
     )")
       .maybeThrow();
 
-  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
-                                   "stormweaver", "",          25432};
-
-  SqlFactory::on_connect_t empty_callback;
-  SqlFactory factory(params, empty_callback);
-
-  auto logger =
-      spdlog::get("test") ? spdlog::get("test") : spdlog::default_logger();
-  LuaContext luaCtx(logger);
   auto metadata = std::make_shared<metadata::Metadata>();
   WorkloadParams wp;
 
   auto worker = std::make_unique<Worker>(
-      "test-worker-simple",
-      [&factory, &luaCtx]() {
-        return factory.connect("test-worker-simple", luaCtx);
-      },
-      wp, metadata);
+      "test-worker-simple", make_connector("test-worker-simple"), wp, metadata);
 
   REQUIRE_NOTHROW(worker->discover_existing_schema());
 
@@ -276,24 +236,11 @@ TEST_CASE_METHOD(WorkerSchemaDiscoveryFixture,
 }
 
 TEST_CASE("Worker - Reset metadata functionality", "[worker_reset_metadata]") {
-  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
-                                   "stormweaver", "",          25432};
-
-  SqlFactory::on_connect_t empty_callback;
-  SqlFactory factory(params, empty_callback);
-
-  auto logger =
-      spdlog::get("test") ? spdlog::get("test") : spdlog::default_logger();
-  LuaContext luaCtx(logger);
   auto metadata = std::make_shared<metadata::Metadata>();
   WorkloadParams wp;
 
   auto worker = std::make_unique<Worker>(
-      "test-worker-reset",
-      [&factory, &luaCtx]() {
-        return factory.connect("test-worker-reset", luaCtx);
-      },
-      wp, metadata);
+      "test-worker-reset", make_connector("test-worker-reset"), wp, metadata);
 
   auto connection = worker->sql_connection();
   REQUIRE(connection != nullptr);
@@ -319,24 +266,11 @@ TEST_CASE("Worker - Reset metadata functionality", "[worker_reset_metadata]") {
 
 TEST_CASE("Worker - Metadata validation functionality",
           "[worker_validate_metadata]") {
-  // Note: This test uses a different port to avoid conflicts with other tests
-  sql_variant::ServerParams params{"sql_tests",   "127.0.0.1", "",
-                                   "stormweaver", "",          25432};
-
-  SqlFactory::on_connect_t empty_callback;
-  SqlFactory factory(params, empty_callback);
-
-  auto logger =
-      spdlog::get("test") ? spdlog::get("test") : spdlog::default_logger();
-  LuaContext luaCtx(logger);
   auto metadata = std::make_shared<metadata::Metadata>();
   WorkloadParams wp;
 
   auto worker = std::make_unique<Worker>(
-      "test-worker-validate",
-      [&factory, &luaCtx]() {
-        return factory.connect("test-worker-validate", luaCtx);
-      },
+      "test-worker-validate", make_connector("test-worker-validate"),
       wp, metadata);
 
   auto connection = worker->sql_connection();

@@ -6,7 +6,6 @@
 #include "action/action_registry.hpp"
 #include "checksum.hpp"
 #include "metadata.hpp"
-#include "scripting/luactx.hpp"
 #include "sql_variant/generic.hpp"
 #include "statistics.hpp"
 
@@ -63,8 +62,7 @@ public:
   RandomWorker(std::string const &name,
                Worker::sql_connector_t const &sql_connector,
                WorkloadParams const &config, metadata_ptr metadata,
-               action::ActionRegistry const &actions,
-               std::unique_ptr<LuaContext> luaCtx);
+               action::ActionRegistry const &actions);
 
   RandomWorker(RandomWorker &&) = default;
 
@@ -76,42 +74,24 @@ public:
 
   action::ActionRegistry &possibleActions();
 
+  const statistics::WorkerStatistics &statistics() const;
+
 protected:
   action::ActionRegistry actions;
   std::thread thread;
-  std::unique_ptr<LuaContext> luaCtx;
   statistics::WorkerStatistics stats;
-};
-
-class SqlFactory {
-public:
-  using on_connect_t = LuaCallback<void(sql_variant::LoggedSQL *)>;
-
-  SqlFactory(sql_variant::ServerParams const &sql_params,
-             on_connect_t connection_callback);
-
-  std::unique_ptr<sql_variant::LoggedSQL>
-  connect(std::string const &connection_name, LuaContext &luaCtx) const;
-
-  sql_variant::ServerParams const &params() const;
-
-private:
-  // postgres / mysql selector
-  sql_variant::ServerParams sql_params;
-  on_connect_t connection_callback;
 };
 
 class Workload {
 public:
-  Workload(WorkloadParams const &params, SqlFactory const &sql_factory,
-           metadata_ptr metadata, action::ActionRegistry const &actions,
-           LuaContext const &topCtx);
+  Workload(WorkloadParams const &params,
+           Worker::sql_connector_t const &sql_connector,
+           metadata_ptr metadata, action::ActionRegistry const &actions);
 
   void run();
 
   void wait_completion();
 
-  // indexes starting from 1, as that's expected from lua
   RandomWorker &worker(std::size_t idx);
 
   std::size_t worker_count() const;
@@ -123,25 +103,4 @@ private:
   std::size_t repeat_times;
   std::vector<RandomWorker> workers;
   action::ActionRegistry actions;
-};
-
-class Node {
-public:
-  Node(SqlFactory const &sql_factory, LuaContext &topCtx);
-
-  std::shared_ptr<Workload> init_random_workload(WorkloadParams const &wp);
-
-  std::unique_ptr<Worker> make_worker(std::string const &name);
-
-  action::ActionRegistry &possibleActions();
-
-  sql_variant::ServerParams const &sql_params() const;
-
-private:
-  SqlFactory sql_factory;
-
-  action::AllConfig default_config;
-  metadata_ptr metadata;
-  action::ActionRegistry actions = action::default_registy();
-  LuaContext &topCtx;
 };

@@ -120,10 +120,8 @@ void Worker::calculate_database_checksums(const std::string &filename) {
 RandomWorker::RandomWorker(std::string const &name,
                            Worker::sql_connector_t const &sql_connector,
                            WorkloadParams const &config, metadata_ptr metadata,
-                           action::ActionRegistry const &actions,
-                           std::unique_ptr<LuaContext> luaCtx)
-    : Worker(name, sql_connector, config, metadata), actions(actions),
-      luaCtx(std::move(luaCtx)) {}
+                           action::ActionRegistry const &actions)
+    : Worker(name, sql_connector, config, metadata), actions(actions) {}
 
 RandomWorker::~RandomWorker() { join(); }
 
@@ -213,9 +211,13 @@ void RandomWorker::join() {
 
 action::ActionRegistry &RandomWorker::possibleActions() { return actions; }
 
-Workload::Workload(WorkloadParams const &params, SqlFactory const &sql_factory,
-                   metadata_ptr metadata, action::ActionRegistry const &actions,
-                   LuaContext const &topCtx)
+const statistics::WorkerStatistics &RandomWorker::statistics() const {
+  return stats;
+}
+
+Workload::Workload(WorkloadParams const &params,
+                   Worker::sql_connector_t const &sql_connector,
+                   metadata_ptr metadata, action::ActionRegistry const &actions)
     : duration_in_seconds(params.duration_in_seconds),
       repeat_times(params.repeat_times), actions(actions) {
 
@@ -224,12 +226,7 @@ Workload::Workload(WorkloadParams const &params, SqlFactory const &sql_factory,
 
   for (std::size_t idx = 0; idx < params.number_of_workers; ++idx) {
     auto name = fmt::format("Worker {}", idx + 1);
-    auto ctx = topCtx.dup();
-    auto &ref = *ctx.get();
-    workers.emplace_back(
-        name,
-        [name, &ref, &sql_factory]() { return sql_factory.connect(name, ref); },
-        params, metadata, actions, std::move(ctx));
+    workers.emplace_back(name, sql_connector, params, metadata, actions);
   }
 }
 
@@ -260,47 +257,3 @@ RandomWorker &Workload::worker(std::size_t idx) {
 }
 
 std::size_t Workload::worker_count() const { return workers.size(); }
-
-SqlFactory::SqlFactory(sql_variant::ServerParams const &sql_params,
-                       on_connect_t connection_callback)
-    : sql_params(sql_params), connection_callback(connection_callback) {}
-
-Node::Node(SqlFactory const &sql_factory, LuaContext &topCtx)
-    : sql_factory(sql_factory), metadata(new metadata::Metadata()),
-      topCtx(topCtx) {}
-
-std::unique_ptr<Worker> Node::make_worker(std::string const &name) {
-  WorkloadParams wp;
-  wp.actionConfig = default_config;
-  return std::make_unique<Worker>(
-      name, [&]() { return sql_factory.connect(name, topCtx); }, wp, metadata);
-}
-
-std::shared_ptr<Workload>
-Node::init_random_workload(WorkloadParams const &params) {
-  return std::make_shared<Workload>(params, sql_factory, metadata, actions,
-                                    topCtx);
-}
-
-std::unique_ptr<sql_variant::LoggedSQL>
-SqlFactory::connect(std::string const &connection_name,
-                    LuaContext &luaCtx) const {
-  auto conn = std::make_unique<sql_variant::LoggedSQL>(
-      std::make_unique<sql_variant::PostgreSQL>(sql_params), connection_name);
-
-  if (connection_callback) {
-    connection_callback(luaCtx, conn.get());
-  }
-
-  return conn;
-}
-
-action::ActionRegistry &Node::possibleActions() { return actions; }
-
-sql_variant::ServerParams const &SqlFactory::params() const {
-  return sql_params;
-}
-
-sql_variant::ServerParams const &Node::sql_params() const {
-  return sql_factory.params();
-}
