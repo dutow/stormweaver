@@ -1,4 +1,5 @@
 nanobind_add_module(_stormweaver
+    FREE_THREADED
     module.cpp
 )
 TARGET_LINK_LIBRARIES(_stormweaver PRIVATE
@@ -6,7 +7,9 @@ TARGET_LINK_LIBRARIES(_stormweaver PRIVATE
 )
 SET_PROPERTY(TARGET _stormweaver PROPERTY CXX_STANDARD 23)
 
-if(TARGET nanobind-static)
-    target_compile_options(nanobind-static PRIVATE
-        -Wno-missing-declarations -Wno-error)
-endif()
+foreach(_nb_target nanobind-static nanobind-static-ft)
+    if(TARGET ${_nb_target})
+        target_compile_options(${_nb_target} PRIVATE
+            -Wno-missing-declarations -Wno-error)
+    endif()
+endforeach()

@@ -1,5 +1,4 @@
 import logging
-import threading
 
 import _stormweaver
 
@@ -32,7 +31,6 @@ class Workload:
         for cycle in range(self.repeat):
             logger.info("Workload cycle %d/%d", cycle + 1, self.repeat)
             workers = []
-            threads = []
 
             params = _stormweaver.WorkloadParams()
             params.duration_in_seconds = self.duration
@@ -49,18 +47,15 @@ class Workload:
                     self.metadata,
                     self.registry,
                 )
-                t = threading.Thread(
-                    target=worker.run_thread,
-                    args=(self.duration,),
-                    name=name,
-                )
                 workers.append(worker)
-                threads.append(t)
 
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
+            # run_thread spawns a C++ std::thread internally
+            for w in workers:
+                w.run_thread(self.duration)
+
+            # join waits for each C++ thread to finish
+            for w in workers:
+                w.join()
 
             # Capture reports as strings while workers are still alive
             for w in workers:
