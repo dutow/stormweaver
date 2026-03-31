@@ -17,6 +17,8 @@ class StormweaverRecipe(ConanFile):
         "ubsan": False,
         "tsan": False,
         "msan": False,
+        "cpython/*:free_threaded": True,
+        "cpython/*:shared": True,
     }
 
     def requirements(self):
@@ -26,10 +28,10 @@ class StormweaverRecipe(ConanFile):
         self.requires("libpqxx/7.9.2")
         self.requires("nlohmann_json/3.11.3")
         self.requires("spdlog/1.15.1")
-        self.requires("sol2/3.5.0")
+        self.requires("cpython/3.14.3")
+        self.requires("nanobind/2.12.0")
         self.requires("catch2/3.7.0")
         self.requires("fmt/11.1.3")
-        self.requires("tomlplusplus/3.4.0")
         self.requires("magic_enum/0.9.7")
         self.requires("cryptopp/8.9.0")
         

@@ -1,11 +1,7 @@
-
-SET(PSTRESS_SOURCES
-    main.cpp
+nanobind_add_module(_stormweaver
+    module.cpp
 )
-
-ADD_EXECUTABLE(stormweaver ${PSTRESS_SOURCES})
-TARGET_LINK_LIBRARIES(stormweaver
+TARGET_LINK_LIBRARIES(_stormweaver PRIVATE
     libstormweaver
 )
-
-INSTALL(TARGETS stormweaver DESTINATION bin)
+SET_PROPERTY(TARGET _stormweaver PROPERTY CXX_STANDARD 23)

@@ -13,7 +13,6 @@ set(LIBRARY_SOURCES
     metadata.cpp
     statistics.cpp
     workload.cpp
-    scripting/luactx.cpp
     schema_discovery.cpp
     metadata_populator.cpp
     sql_variant/generic.cpp
@@ -30,9 +29,6 @@ TARGET_LINK_LIBRARIES(libstormweaver
     boost::boost
     reflectcpp::reflectcpp
     spdlog::spdlog
-    sol2::sol2
-    toml-lua
-    lfs-lua
     cryptopp::cryptopp
 )
 SET_PROPERTY(TARGET libstormweaver PROPERTY CXX_STANDARD 23)
