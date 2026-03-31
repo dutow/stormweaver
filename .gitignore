@@ -8,3 +8,4 @@
 /logs/
 /datadirs/
 /backups/
+__pycache__
