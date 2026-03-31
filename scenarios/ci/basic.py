@@ -1,3 +1,4 @@
+import os
 import shutil
 
 import stormweaver as sw
@@ -41,8 +42,10 @@ def main(args):
     action_config = sw.AllConfig()
     action_config.ddl.access_methods = ["heap"]
 
+    user = os.environ.get("PGUSER", os.getlogin())
+
     def make_connection():
-        return sw.connect_pg(host="localhost", port=pg.port, dbname="testdb")
+        return sw.connect_pg(host="localhost", port=pg.port, dbname="testdb", user=user)
 
     # Create initial tables
     worker = sw.Worker("setup", make_connection, sw.WorkloadParams(), metadata)

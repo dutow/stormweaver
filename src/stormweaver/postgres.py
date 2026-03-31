@@ -36,6 +36,9 @@ class Postgres:
         else:
             self._port = "5432"
 
+        # Use datadir for unix socket to avoid needing /run/postgresql
+        self.add_config("unix_socket_directories", str(self.datadir.resolve()))
+
     @property
     def port(self):
         return int(self._port)
@@ -98,7 +101,7 @@ class Postgres:
 
     def is_ready(self):
         result = subprocess.run(
-            [self._bin("pg_isready"), "-p", self._port],
+            [self._bin("pg_isready"), "-h", "localhost", "-p", self._port],
             capture_output=True,
             text=True,
         )
@@ -114,7 +117,7 @@ class Postgres:
 
     def createdb(self, name):
         result = subprocess.run(
-            [self._bin("createdb"), "-p", self._port, name],
+            [self._bin("createdb"), "-h", "localhost", "-p", self._port, name],
             capture_output=True,
             text=True,
         )
@@ -123,7 +126,7 @@ class Postgres:
 
     def dropdb(self, name):
         subprocess.run(
-            [self._bin("dropdb"), "-p", self._port, name],
+            [self._bin("dropdb"), "-h", "localhost", "-p", self._port, name],
             capture_output=True,
             text=True,
         )
@@ -133,6 +136,7 @@ class Postgres:
             self._bin("pg_basebackup"),
             "-D",
             str(target_datadir),
+            "-h", "localhost",
             "-p",
             self._port,
             "--no-sync",

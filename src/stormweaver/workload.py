@@ -26,7 +26,7 @@ class Workload:
         self.node_factory = node_factory
         self.max_reconnect_attempts = max_reconnect_attempts
         self.action_config = action_config
-        self._all_stats = []
+        self._reports = []
 
     def run(self):
         for cycle in range(self.repeat):
@@ -62,11 +62,12 @@ class Workload:
             for t in threads:
                 t.join()
 
+            # Capture reports as strings while workers are still alive
             for w in workers:
-                self._all_stats.append(w.statistics())
+                self._reports.append(w.statistics().report())
 
             logger.info("Workload cycle %d complete", cycle + 1)
 
     def print_report(self):
-        for stats in self._all_stats:
-            print(stats.report())
+        for report in self._reports:
+            print(report)
