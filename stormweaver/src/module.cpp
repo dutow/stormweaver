@@ -105,4 +105,50 @@ NB_MODULE(_stormweaver, m) {
         .def_rw("repeat_times", &WorkloadParams::repeat_times)
         .def_rw("number_of_workers", &WorkloadParams::number_of_workers)
         .def_rw("max_reconnect_attempts", &WorkloadParams::max_reconnect_attempts);
+
+    // --- Statistics ---
+
+    nb::class_<statistics::TimingStatistics>(m, "TimingStatistics")
+        .def("avg_ms", &statistics::TimingStatistics::getAverageMs)
+        .def("min_ms", &statistics::TimingStatistics::getMinMs)
+        .def("max_ms", &statistics::TimingStatistics::getMaxMs)
+        .def_ro("count", &statistics::TimingStatistics::count)
+        .def("has_data", &statistics::TimingStatistics::hasData);
+
+    nb::class_<statistics::ActionStatistics>(m, "ActionStatistics")
+        .def_ro("success_count", &statistics::ActionStatistics::successCount)
+        .def_ro("action_failure_count", &statistics::ActionStatistics::actionFailureCount)
+        .def_ro("sql_failure_count", &statistics::ActionStatistics::sqlFailureCount)
+        .def_ro("other_failure_count", &statistics::ActionStatistics::otherFailureCount)
+        .def_ro("execution_timing", &statistics::ActionStatistics::executionTiming)
+        .def_ro("sql_timing", &statistics::ActionStatistics::sqlTiming);
+
+    nb::class_<statistics::WorkerStatistics>(m, "WorkerStatistics")
+        .def("report", &statistics::WorkerStatistics::report)
+        .def("report_summary", &statistics::WorkerStatistics::reportSummary)
+        .def("report_detailed", &statistics::WorkerStatistics::reportDetailed);
+
+    // --- Workers ---
+
+    using sql_connector_t = Worker::sql_connector_t;
+
+    nb::class_<Worker>(m, "Worker")
+        .def(nb::init<std::string const &, sql_connector_t const &,
+             WorkloadParams const &, metadata_ptr>())
+        .def("create_random_tables", &Worker::create_random_tables)
+        .def("discover_existing_schema", &Worker::discover_existing_schema)
+        .def("reset_metadata", &Worker::reset_metadata)
+        .def("validate_metadata", &Worker::validate_metadata)
+        .def("reconnect", &Worker::reconnect);
+
+    nb::class_<RandomWorker, Worker>(m, "RandomWorker")
+        .def(nb::init<std::string const &, sql_connector_t const &,
+             WorkloadParams const &, metadata_ptr,
+             action::ActionRegistry const &>())
+        .def("run_thread", &RandomWorker::run_thread)
+        .def("join", &RandomWorker::join)
+        .def("possible_actions", &RandomWorker::possibleActions,
+             nb::rv_policy::reference)
+        .def("statistics", &RandomWorker::statistics,
+             nb::rv_policy::reference);
 }
