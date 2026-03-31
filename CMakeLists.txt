@@ -95,7 +95,7 @@ if(nanobind_FOUND)
       "${CMAKE_BINARY_DIR}/stormweaver.configured"
       @ONLY
   )
-  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/stormweaver"
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/bin/stormweaver"
        INPUT "${CMAKE_BINARY_DIR}/stormweaver.configured")
 
   # Install rules

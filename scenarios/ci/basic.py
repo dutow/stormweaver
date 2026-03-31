@@ -34,7 +34,7 @@ def main(args):
     registry = sw.default_action_registry()
 
     # Remove partition actions for simplicity
-    for action_name in ["CreatePartition", "DropPartition"]:
+    for action_name in ["create_partition", "drop_partition"]:
         if registry.has(action_name):
             registry.remove(action_name)
 
