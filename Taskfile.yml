@@ -1,0 +1,133 @@
+version: "3"
+
+vars:
+  BUILD_DIR: "{{.ROOT_DIR}}/build/Debug"
+  BUILD_OUT: "/tmp/sw-build"
+  BUILD_TYPE: Debug
+  CONAN_INDEX: "{{.ROOT_DIR}}/../conan-center-index"
+  CPYTHON_VERSION: "3.14.3"
+
+tasks:
+
+  # ---------- Conan / dependency setup ----------
+
+  export-cpython:
+    desc: Export the cpython recipe from the local conan-center-index fork
+    cmds:
+      - conan export "{{.CONAN_INDEX}}/recipes/cpython/all/" --version {{.CPYTHON_VERSION}}
+
+  conan:
+    desc: Install all conan dependencies (builds missing packages)
+    deps: [export-cpython]
+    cmds:
+      - >-
+        CFLAGS="-std=gnu17"
+        conan install . --build=missing
+        -s build_type={{.BUILD_TYPE}}
+        -s compiler.cppstd=20
+        -s 'cpython/*:build_type=Release'
+    sources:
+      - conanfile.py
+    generates:
+      - "{{.BUILD_DIR}}/generators/conan_toolchain.cmake"
+
+  # ---------- CMake configure / build ----------
+
+  configure:
+    desc: Configure cmake (auto-detects PG install)
+    deps: [conan]
+    cmds:
+      - >-
+        source "{{.BUILD_DIR}}/generators/conanbuild.sh" &&
+        source "{{.BUILD_DIR}}/generators/conanrun.sh" &&
+        cmake
+        -S "{{.ROOT_DIR}}"
+        -B "{{.BUILD_OUT}}"
+        -G Ninja
+        -DCMAKE_BUILD_TYPE={{.BUILD_TYPE}}
+        -DCMAKE_TOOLCHAIN_FILE="{{.BUILD_DIR}}/generators/conan_toolchain.cmake"
+        -DWITH_ASAN=OFF -DWITH_UBSAN=OFF -DWITH_TSAN=OFF -DWITH_MSAN=OFF
+        {{.CLI_ARGS}}
+    sources:
+      - CMakeLists.txt
+      - cmake/**/*
+      - libstormweaver/**/CMakeLists.txt
+      - stormweaver/**/CMakeLists.txt
+      - tests/CMakeLists.txt
+      - "{{.BUILD_DIR}}/generators/conan_toolchain.cmake"
+
+  build:
+    desc: Build everything
+    deps: [configure]
+    cmds:
+      - >-
+        source "{{.BUILD_DIR}}/generators/conanbuild.sh" &&
+        source "{{.BUILD_DIR}}/generators/conanrun.sh" &&
+        cmake --build "{{.BUILD_OUT}}"
+      - chmod +x "{{.BUILD_OUT}}/bin/stormweaver" 2>/dev/null || true
+
+  # ---------- Tests ----------
+
+  test:unit:
+    desc: Run C++ unit tests
+    deps: [build]
+    cmds:
+      - "{{.BUILD_OUT}}/bin/test-stormweaver-unit"
+
+  test:sql:
+    desc: Run C++ SQL integration tests (requires running PG)
+    deps: [build]
+    cmds:
+      - "{{.BUILD_OUT}}/bin/test-stormweaver-sql"
+
+  test:scenario:
+    desc: Run the basic Python scenario (starts its own PG instance)
+    deps: [build]
+    vars:
+      PG_DIR:
+        sh: >-
+          for d in /usr/lib/postgresql18 /usr/lib/postgresql17 /usr/lib/postgresql16 /usr/lib/postgresql; do
+            [ -x "$d/bin/initdb" ] && echo "$d" && break;
+          done
+    preconditions:
+      - sh: test -n "{{.PG_DIR}}"
+        msg: "No PostgreSQL server installation found"
+    cmds:
+      - >-
+        source "{{.BUILD_DIR}}/generators/conanrun.sh" &&
+        "{{.BUILD_OUT}}/bin/stormweaver"
+        scenarios/ci/basic.py
+        -i "{{.PG_DIR}}"
+
+  test:
+    desc: Run all tests (unit + scenario)
+    cmds:
+      - task: test:unit
+      - task: test:scenario
+
+  # ---------- Run ----------
+
+  run:
+    desc: "Run a scenario: task run -- scenarios/ci/basic.py -i /path/to/pg"
+    deps: [build]
+    cmds:
+      - >-
+        source "{{.BUILD_DIR}}/generators/conanrun.sh" &&
+        "{{.BUILD_OUT}}/bin/stormweaver" {{.CLI_ARGS}}
+
+  # ---------- Utilities ----------
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf "{{.BUILD_OUT}}"
+
+  clean:all:
+    desc: Remove build artifacts and conan-generated files
+    cmds:
+      - rm -rf "{{.BUILD_OUT}}" "{{.BUILD_DIR}}"
+
+  fmt:
+    desc: Format C++ source files with clang-format
+    cmds:
+      - find libstormweaver stormweaver -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
